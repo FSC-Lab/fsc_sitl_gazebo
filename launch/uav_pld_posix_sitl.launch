@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+    <env name="GAZEBO_MODEL_PATH" value="$(env GAZEBO_MODEL_PATH):$(find personal_sitl_gazebo)/models" />
+    <arg name="gui" default="true" />
+    <arg name="world_name" default="empty" />
+    <arg name="world" default="$(find mavlink_sitl_gazebo)/worlds/$(arg world_name).world" />
+    <arg name="sdf" value="$(find personal_sitl_gazebo)/models/iris_tagged_pld/iris_tagged_pld.sdf" />
+    <include file="$(find px4)/launch/mavros_posix_sitl.launch" pass_all_args="true" />
+    <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+        <arg name="camera_name" value="/iris/usb_cam" />
+        <arg name="image_topic" value="image_raw" />
+    </include>
+    <node name="position_transform" pkg="topic_tools" type="transform" args="/tag_detections 
+    /tag_detections/position
+    geometry_msgs/PointStamped 
+    'geometry_msgs.msg.PointStamped(
+        header=m.header,
+        point=m.detections[0].pose.pose.pose.position
+        if m.detections
+        else geometry_msgs.msg.Point(),
+    )' --import geometry_msgs" />
+</launch>
