@@ -3,14 +3,31 @@
 from argparse import ArgumentParser
 from functools import partial
 from copy import deepcopy
+from sys import argv
 
 import numpy as np
 import rospy
 from geometry_msgs.msg import Point, PointStamped, Vector3, Vector3Stamped
 from nav_msgs.msg import Odometry
 
-from utils.msg_conversions import array_to_components, components_to_array
-from utils.rotation import quaternion_rotate_point
+
+def components_to_array(msg):
+    components = "xyzw" if hasattr(msg, "w") else "xyz"
+    return np.array([getattr(msg, component) for component in components])
+
+
+def array_to_components(arr, data_class):
+    components = "xyzw" if hasattr(data_class, "w") else "xyz"
+    return data_class(**dict(zip(components, arr)))
+
+
+def quaternion_rotate_point(q, v):
+    w = q[3]
+    vec = q[0:3]
+    uv = np.cross(vec, v)
+    uv += uv
+    return v + w * uv + np.cross(vec, uv)
+
 
 ODOM_STRUCT_INIT = {
     "position": np.zeros((3,), dtype=float),
@@ -22,13 +39,15 @@ ODOM_STRUCT_INIT = {
 
 def main():
     rospy.init_node("ground_truth_relative")
+    rospy.myargv(argv=argv)
+
     parser = ArgumentParser("demux_odom")
     parser.add_argument("parent", type=str, help="Topic of ground truth of parent body")
     parser.add_argument("child", type=str, help="Topic of ground truth of child body")
     parser.add_argument(
         "out", type=str, help="Base topic to publish relative position/velocity data on"
     )
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     def store_odom(msg, body):
         body["position"][:] = components_to_array(msg.pose.pose.position)
@@ -60,17 +79,19 @@ def main():
         parent_orientation = parent["orientation"]
         position_diff[:] = child["position"] - parent["position"]
         relative_pos = quaternion_rotate_point(parent_orientation, position_diff)
-        pld = PointStamped()
-        pld.header.stamp = event.current_real
-        pld.point = array_to_components(relative_pos, Point)
-        pub_relative_position.publish(pld)
+        if np.any(relative_pos):
+            pld = PointStamped()
+            pld.header.stamp = event.current_real
+            pld.point = array_to_components(relative_pos, Point)
+            pub_relative_position.publish(pld)
 
         velocity_diff = child["linear_velocity"] - parent["linear_velocity"]
         relative_vel = quaternion_rotate_point(parent_orientation, velocity_diff)
-        pld = Vector3Stamped()
-        pld.header.stamp = event.current_real
-        pld.vector = array_to_components(relative_vel, Vector3)
-        pub_relative_velocity.publish(pld)
+        if np.any(relative_vel):
+            pld = Vector3Stamped()
+            pld.header.stamp = event.current_real
+            pld.vector = array_to_components(relative_vel, Vector3)
+            pub_relative_velocity.publish(pld)
 
     duration = rospy.Duration(nsecs=33333333)
     rospy.Timer(duration, main_loop)
