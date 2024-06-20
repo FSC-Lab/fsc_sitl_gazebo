@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(personal_sitl_gazebo)
+project(fsc_sitl_gazebo)
 
 find_package(catkin REQUIRED)
 
