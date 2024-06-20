@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+  <env name="GAZEBO_MODEL_PATH" value="$(env GAZEBO_MODEL_PATH):$(find fsc_sitl_gazebo)/models" />
+  <arg name="custom_model" default="" />
+  <arg name="gui" default="true" />
+  <arg name="world_name" default="empty" />
+  <arg name="world" default="$(find mavlink_sitl_gazebo)/worlds/$(arg world_name).world" />
+  <group if="$(eval bool(arg('custom_model')))">
+    <arg name="sdf" value="$(find fsc_sitl_gazebo)/models/$(arg custom_model)/$(arg custom_model).sdf" />
+    <include file="$(find px4)/launch/mavros_posix_sitl.launch" pass_all_args="true" />
+  </group>
+</launch>
+
